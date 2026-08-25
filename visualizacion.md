@@ -1,176 +1,186 @@
-# Categoricals & Optimización de Memoria en Pandas (Nivel Mid/Senior)
+# Visualización de Datos para Pruebas Técnicas (Matplotlib & Seaborn)
+
+Guía práctica de visualización aplicada a pruebas técnicas de Data Analyst (Nivel Mid/Senior). En una prueba técnica no se evalúa hacer gráficos decorativos, sino la **claridad del mensaje, legibilidad inmediata, ausencia de saturación (*chart junk*) y rigor estadístico**.
 
 ---
 
-## 1. El Problema de la Memoria en Pandas (`object` vs `category`)
+## 1. Los 5 Gráficos Fundamentales en Entrevistas de Negocio
 
-Por defecto, Pandas almacena las cadenas de texto como tipo `object` (punteros de Python a objetos en memoria). Si una columna tiene 1.000.000 de filas con el valor `'España'`, Pandas guarda 1.000.000 de punteros independientes.
+| Tipo de Pregunta / Caso de Negocio | Tipo de Gráfico | Método Recomendado |
+| :--- | :--- | :--- |
+| **Evolución temporal / Métricas YoY** | Gráfico de Líneas | `sns.lineplot()` |
+| **Comparativa de categorías / Rankings** | Barras Horizontales | `sns.barplot()` / `plt.barh()` |
+| **Distribución / Dispersión de valores** | Boxplot / Histograma + KDE | `sns.boxplot()` / `sns.histplot()` |
+| **Correlación entre variables continuas** | Scatter Plot / Regresión | `sns.scatterplot()` / `sns.regplot()` |
+| **Matriz de Cohortes / Retención** | Heatmap con anotaciones | `sns.heatmap()` |
 
-El tipo **`category`** implementa *Dictionary Encoding*:
-* Guarda los valores únicos (*categories*) en una lista interna indexada: `['España', 'Francia', 'Alemania']`.
-* En la columna solo almacena enteros pequeños (`int8` o `int16`) que apuntan a dicho índice.
+---
 
-### Cuándo usar `category`:
-* **Regla de oro:** Cuando el número de valores únicos es menor al **50%** del total de filas (baja y media cardinalidad: países, estados, categorías, género, tallas).
-* **Beneficio:** Reducción de uso de RAM entre un **60% y 90%** y aceleración drástica en operaciones de `groupby`, `sort_values` y filtros.
+## 2. Plantilla Base Profesional (Configuración Global)
+
+Configura siempre el lienzo y el estilo al inicio del script o notebook para garantizar proporciones legibles y tipografía clara:
 
 ```python
+import matplotlib.pyplot as plt
+import seaborn as sns
 import pandas as pd
 import numpy as np
 
-# Simulación de dataset (1 millón de transacciones)
-n = 1_000_000
-df = pd.DataFrame({
-    'pais': np.random.choice(['ES', 'FR', 'DE', 'IT', 'PT'], size=n),
-    'tipo_cliente': np.random.choice(['VIP', 'REGULAR', 'NUEVO'], size=n),
-    'importe': np.random.uniform(10.0, 500.0, size=n)
+# Configuración de estilo sobrio y profesional
+sns.set_theme(style="whitegrid", palette="tab10")
+plt.rcParams.update({
+    'figure.figsize': (10, 5),
+    'axes.titlesize': 14,
+    'axes.titleweight': 'bold',
+    'axes.labelsize': 11,
+    'xtick.labelsize': 10,
+    'ytick.labelsize': 10,
+    'figure.autolayout': True  # Evita que se corten los textos de los ejes
 })
-
-# Inspección de memoria real (deep=True obligatorio para inspeccionar strings)
-print("Memoria antes:")
-print(df.memory_usage(deep=True) / 1024**2)  # En MB (~120 MB)
-
-# Conversión a category
-df['pais'] = df['pais'].astype('category')
-df['tipo_cliente'] = df['tipo_cliente'].astype('category')
-
-print("Memoria después:")
-print(df.memory_usage(deep=True) / 1024**2)  # En MB (~10 MB -> Reducción de >90%)
 ```
 
 ---
 
-## 2. Categorías Ordenadas (*Ordered Categoricals*)
+## 3. Código y Patrones Listos para Entrevistas
 
-Las categorías pueden tener un orden jerárquico inherente (ej. `Bajo < Medio < Alto`, encuestas de satisfacción, tallas `S < M < L < XL`).
-
-### Ventajas:
-* Permite comparaciones matemáticas directas (`>`, `<`, `<=`) sin necesidad de mapear a números.
-* Funciones como `.min()`, `.max()`, o `.sort_values()` respetan el orden de negocio en lugar del orden alfabético.
+### A. Gráfico de Barras Horizontal Ordenado (Comparativa / Top N)
+> **Regla de oro:** Las barras horizontales facilitan la lectura de nombres de categorías largos sin necesidad de rotar el texto del eje X a 45° o 90°.
 
 ```python
-from pandas.api.types import CategoricalDtype
-
-# Definir el tipo categórico ordenado
-nivel_satisfaccion = CategoricalDtype(
-    categories=['Muy Malo', 'Malo', 'Neutro', 'Bueno', 'Excelente'],
-    ordered=True
+# 1. Preparar datos ordenados
+df_top = (
+    df.groupby('categoria', as_index=False)['importe']
+    .sum()
+    .sort_values('importe', ascending=False)
+    .head(10)
 )
 
-df = pd.DataFrame({
-    'encuesta': ['Excelente', 'Malo', 'Muy Malo', 'Bueno', 'Neutro', 'Excelente']
-})
+# 2. Renderizar gráfico
+fig, ax = plt.subplots(figsize=(10, 5))
+sns.barplot(data=df_top, x='importe', y='categoria', color='#2563eb', ax=ax)
 
-df['encuesta'] = df['encuesta'].astype(nivel_satisfaccion)
+# 3. Etiquetas de datos directas en cada barra
+for p in ax.patches:
+    width = p.get_width()
+    ax.annotate(
+        f'{width:,.0f}€', 
+        (width, p.get_y() + p.get_height() / 2.),
+        xytext=(6, 0), 
+        textcoords='offset points', 
+        va='center', 
+        fontsize=9,
+        weight='bold'
+    )
 
-# ✅ Ordenación natural según la lógica de negocio
-df_ordenado = df.sort_values('encuesta')
-
-# ✅ Filtrado directo con comparadores matemáticos
-df_satisfechos = df[df['encuesta'] >= 'Bueno']
+ax.set_title("Top 10 Categorías por Facturación Total (2024)")
+ax.set_xlabel("Facturación (€)")
+ax.set_ylabel("")
+sns.despine(left=True, bottom=True)
+plt.show()
 ```
 
 ---
 
-## 3. Downcasting Numérico (`int` y `float`)
+### B. Evolución Temporal con Línea de Tendencia / Comparativa de Grupos
+> **Caso de uso:** Visualizar evolución mensual de ventas separadas por segmento (ej. Nuevos vs Recurrentes).
 
-Por defecto, Pandas asigna `int64` (8 bytes por valor) y `float64` (8 bytes por valor), incluso si los datos son números pequeños o porcentajes.
-
-### Tipos enteros y sus límites:
-* `int8`: -128 a 127 (1 byte)
-* `int16`: -32.768 a 32.767 (2 bytes)
-* `int32`: -2.147.483.648 a 2.147.483.647 (4 bytes)
-* `int64`: Hasta 9 x 10^18 (8 bytes)
-
-### Reducción automática con `pd.to_numeric(..., downcast=...)`:
 ```python
-# Downcasting de enteros y flotantes
-df['edad'] = pd.to_numeric(df['edad'], downcast='integer')       # Pasa de int64 a int8
-df['precio'] = pd.to_numeric(df['precio'], downcast='float')     # Pasa de float64 a float32
+fig, ax = plt.subplots(figsize=(11, 5))
+sns.lineplot(
+    data=df_mensual,
+    x='fecha',
+    y='importe',
+    hue='segmento',
+    marker='o',
+    linewidth=2,
+    ax=ax
+)
+
+ax.set_title("Evolución de Ingresos Mensuales por Segmento de Cliente")
+ax.set_xlabel("Mes de Operación")
+ax.set_ylabel("Facturación Neta (€)")
+ax.legend(title="Segmento", frameon=True)
+plt.xticks(rotation=0)
+plt.show()
 ```
 
 ---
 
-## 4. Función de Optimización Automática de DataFrames
-
-Función estándar en producción para reducir el tamaño de cualquier DataFrame antes de procesarlo:
+### C. Matriz de Retención / Cohortes (Heatmap)
+> **Pregunta estrella:** Mostrar cómo cae la retención de usuarios a lo largo de los meses.
 
 ```python
-def optimize_dataframe_memory(df: pd.DataFrame) -> pd.DataFrame:
-    df_opt = df.copy()
-    for col in df_opt.columns:
-        col_type = df_opt[col].dtype
-        
-        # 1. Optimizar objetos / strings a category si cardinalidad < 50%
-        if col_type == 'object' or col_type.name == 'string':
-            num_unique = df_opt[col].nunique()
-            num_total = len(df_opt[col])
-            if num_total > 0 and (num_unique / num_total) < 0.5:
-                df_opt[col] = df_opt[col].astype('category')
-                
-        # 2. Optimizar enteros
-        elif np.issubdtype(col_type, np.integer):
-            df_opt[col] = pd.to_numeric(df_opt[col], downcast='integer')
-            
-        # 3. Optimizar flotantes
-        elif np.issubdtype(col_type, np.floating):
-            df_opt[col] = pd.to_numeric(df_opt[col], downcast='float')
-            
-    return df_opt
+# Suponiendo que 'cohort_matrix' es una tabla pivote con porcentajes (0.0 a 1.0)
+fig, ax = plt.subplots(figsize=(12, 6))
+
+sns.heatmap(
+    cohort_matrix,
+    annot=True,
+    fmt='.1%',
+    cmap='Blues',
+    vmin=0.0,
+    vmax=0.8,
+    cbar_kws={'label': '% Retención'},
+    linewidths=0.5,
+    ax=ax
+)
+
+ax.set_title("Matriz de Retención por Cohortes Mensuales")
+ax.set_xlabel("Meses transcurridos desde el registro")
+ax.set_ylabel("Cohorte de Adquisición")
+plt.show()
 ```
 
 ---
 
-## 5. Lectura Eficiente por Trozos (*Chunking*) y Column Pruning
+### D. Distribución y Detección de Outliers (Boxplot + Strip/Jitter)
+> **Caso de uso:** Comparar la dispersión del ticket medio entre países.
 
-Cuando el archivo es demasiado grande para caber en memoria RAM:
-
-### A. Cargar solo las columnas necesarias (`usecols`)
 ```python
-# ❌ Carga todas las columnas a memoria
-df = pd.read_csv('dataset_gigante.csv')
+fig, ax = plt.subplots(figsize=(9, 5))
 
-# ✅ Carga únicamente las indispensables
-columnas_clave = ['fecha', 'cliente_id', 'importe']
-df = pd.read_csv('dataset_gigante.csv', usecols=columnas_clave)
-```
+# Boxplot base
+sns.boxplot(
+    data=df, 
+    x='pais', 
+    y='importe', 
+    showmeans=True, 
+    meanprops={"marker":"o", "markerfacecolor":"white", "markeredgecolor":"black"},
+    palette='Blues_r', 
+    ax=ax
+)
 
-### B. Especificar `dtype` en la lectura inicial
-Evita que Pandas gaste memoria infiriendo tipos en `int64` u `object`:
-```python
-dtypes_dict = {
-    'pais': 'category',
-    'estado': 'category',
-    'edad': 'int8',
-    'importe': 'float32'
-}
-
-df = pd.read_csv('dataset_gigante.csv', dtype=dtypes_dict)
-```
-
-### C. Procesamiento por lotes (`chunksize`)
-```python
-total_ventas = 0.0
-
-# Procesa el archivo en bloques de 100.000 filas sin desbordar la memoria
-for chunk in pd.read_csv('ventas_masivas.csv', chunksize=100_000, usecols=['importe']):
-    total_ventas += chunk['importe'].sum()
+ax.set_title("Distribución de Importe de Compra por País (Punto blanco = Media)")
+ax.set_xlabel("País")
+ax.set_ylabel("Importe (€)")
+plt.show()
 ```
 
 ---
 
-## 6. Trampas Comunes con `category` en Entrevistas Técnicas
+## 4. Buenas vs. Malas Prácticas en Visualización
 
-* **Añadir un valor no existente en las categorías:**
-  ```python
-  df['pais'] = df['pais'].astype('category')
-  # ❌ Si asignas un valor que no estaba en las categorías originales:
-  # Lanza TypeError o asigna NaN silenciosamente
-  df.loc[0, 'pais'] = 'MX'
-  
-  # ✅ Solución: Añadir la categoría primero
-  df['pais'] = df['pais'].cat.add_categories(['MX'])
-  df.loc[0, 'pais'] = 'MX'
-  ```
-* **Medir memoria con `df.info()` simple:**
-  Por defecto, `df.info()` muestra una estimación superficial. En entrevistas debes usar `df.info(memory_usage='deep')` o `df.memory_usage(deep=True)` para que contabilice los punteros de strings en memoria real.
+| Aspecto | ✓ Buena Práctica (Senior) | ✗ Mala Práctica (Junior) |
+| :--- | :--- | :--- |
+| **Gráficos de Tarta (Pie Charts)** | Usar gráficos de barras (horizontal o vertical). | Usar gráficos de tarta con más de 3 categorías. |
+| **Ejes numéricos continuos** | Comenzar siempre el eje Y en 0 para evitar distorsiones visuales. | Cortar el eje Y artificialmente para exagerar diferencias mínimas. |
+| **Textos en ejes** | Ordenar barras por valor y colocarlas horizontales para leer fácil. | Nombres en diagonal a 90° difíciles de leer. |
+| **Uso del Color** | Usar colores intencionales (ej. destacar solo la barra líder en azul y el resto en gris). | Usar paletas arcoíris con 15 colores distintos sin justificación. |
+| **Contexto** | Añadir unidades de medida (€, %, días) y títulos explicativos. | Títulos genéricos como *"Gráfico 1"* sin unidades en los ejes. |
+
+---
+
+## 5. El Patrón "Highlight" (Para Destacar en la Presentación Técnica)
+
+En entrevistas técnicas para perfiles analíticos destaca mucho guiar la atención del evaluador hacia el hallazgo clave usando colores neutros y un único color de énfasis:
+
+```python
+# Resaltar solo la barra líder o anómala:
+colores = ['#2563eb' if cat == 'Tech' else '#cbd5e1' for cat in df_top['categoria']]
+
+fig, ax = plt.subplots(figsize=(10, 4))
+sns.barplot(data=df_top, x='importe', y='categoria', palette=colores, ax=ax)
+ax.set_title("Tech lidera con más del 40% del volumen total de ventas")
+sns.despine()
+plt.show()
+```
