@@ -1,3 +1,5 @@
+https://platform.stratascratch.com/coding/10352-users-by-avg-session-time
+ 
  Guía de Práctica para Entrevistas Técnicas: StrataScratch (Python / Pandas)
 
 Esta recopilación contiene las preguntas clave y más representativas de **StrataScratch** para preparar entrevistas técnicas de Data Analyst en Python/Pandas, organizadas por patrón técnico y empresa.
