@@ -1,6 +1,6 @@
-# Cheatsheet: Optimizando Pandas con NumPy (`np.where` & `np.select`)
+# Cheatsheet: Optimizando Pandas con NumPy (`np.where` & `np.select`) y Vectorización de Filtros
 
-Guía rápida y mejores prácticas para reemplazar `.apply(lambda ...)` por operaciones vectorizadas en Pandas y NumPy, logrando mejoras de rendimiento de hasta **100x**.
+Guía rápida y mejores prácticas para reemplazar `.apply(lambda ...)` y bucles imperativos por operaciones vectorizadas en Pandas y NumPy, logrando mejoras de rendimiento de hasta **100x**.
 
 ---
 
@@ -89,23 +89,67 @@ df['precio_final'] = np.vectorize(logica_compleja)(df['precio'], df['tipo_client
 
 ---
 
-## 3. Filtrado de Filas (Uso Correcto de `~`)
+## 3. Vectorización de Filtros y Reducción de Filas
 
-> **Regla de oro:** NO usar `np.where` ni `np.select` para filtrar o eliminar filas (reducir la dimensión del DataFrame). Usa máscaras booleanas directas y el operador de negación bit a bit `~`.
+> **Regla de oro:** NO usar `np.where` ni bucles `apply` para filtrar o eliminar filas. Para reducir la dimensionalidad de un DataFrame se deben usar máscaras booleanas vectorizadas, operadores bit a bit (`&`, `|`, `~`) o métodos vectorizados nativos (`isin`, `between`, `str.contains`).
 
-### Filtrado con Negación (`~`)
+### A. Filtrado Simple vs Filtrado con Negación (`~`)
+El operador `~` invierte la máscara booleana a nivel de bits de forma instantánea en C/NumPy:
+
 ```python
-# Crear máscara booleana
+# ❌ LENTO (Uso innecesario de apply para filtrar)
+df_activos = df[df['estado'].apply(lambda x: x != 'Inactivo')]
+
+# ✅ RÁPIDO (Máscara booleana directa)
+df_activos = df[df['estado'] == 'Activo']
+
+# ✅ RÁPIDO (Negación vectorizada con ~)
 filtro_inactivos = df['estado'] == 'Inactivo'
-
-# ✅ Excluir inactivos (NOT)
 df_activos = df[~filtro_inactivos]
-
-# ✅ Combinación con paréntesis obligatorios (...)
-df_filtrado = df[~filtro_inactivos & (df['compras'] > 100)]
 ```
 
-*Nota:* Recuerda envolver siempre cada subcondición entre paréntesis `(...)` al combinar con `&` (AND), `|` (OR) o `~` (NOT).
+### B. Condiciones Múltiples Vectorizadas (AND / OR / NOT)
+En Pandas/NumPy no se usan las palabras clave `and`, `or`, `not` para arrays, sino los operadores bit a bit `&`, `|`, `~`.
+
+```python
+# ❌ INCORRECTO: Lanzará ValueError: The truth value of a Series is ambiguous
+# df_filtrado = df[df['precio'] > 50 and df['stock'] > 0]
+
+# ✅ CORRECTO: Paréntesis obligatorios por precedencia de operadores
+df_filtrado = df[(df['precio'] > 50) & (df['stock'] > 0)]
+
+# ✅ Combinación compleja con negación:
+df_complejo = df[~(df['categoria'] == 'Obsol') & ((df['ventas'] > 100) | (df['rating'] >= 4.5))]
+```
+
+### C. Métodos Vectorizados Nativos de Filtrado
+Evitan escribir múltiples comparaciones manuales y están altamente optimizados:
+
+| Caso de Uso | ❌ Forma Lenta / Imperativa | ✅ Método Vectorizado Nativo |
+| :--- | :--- | :--- |
+| **Pertenencia a lista** | `df[df['pais'].apply(lambda x: x in ['ES', 'FR', 'DE'])]` | `df[df['pais'].isin(['ES', 'FR', 'DE'])]` |
+| **Exclusión de lista** | `df[df['pais'].apply(lambda x: x not in ['ES', 'FR'])]` | `df[~df['pais'].isin(['ES', 'FR'])]` |
+| **Rango numérico** | `df[(df['edad'] >= 18) & (df['edad'] <= 65)]` | `df[df['edad'].between(18, 65)]` |
+| **Búsqueda de texto** | `df[df['codigo'].apply(lambda x: 'AA' in str(x))]` | `df[df['codigo'].str.contains('AA', na=False)]` |
+| **Exclusión de texto** | `df[df['codigo'].apply(lambda x: 'AA' not in str(x))]` | `df[~df['codigo'].str.contains('AA', na=False)]` |
+| **Valores nulos** | `df[df['importe'].apply(lambda x: pd.isna(x))]` | `df[df['importe'].isna()]` / `df[~df['importe'].isna()]` |
+
+### D. Vectorización a Nivel de Grupo (`GroupBy.filter` vs `.transform`)
+Para filtrar filas evaluando condiciones sobre el **grupo completo** (el `HAVING` de SQL):
+
+```python
+# ❌ LENTO: Calcular agregados, hacer merge y luego filtrar
+totales = df.groupby('cliente_id')['importe'].sum().reset_index()
+df_merged = df.merge(totales, on='cliente_id', suffixes=('', '_tot'))
+df_top = df_merged[df_merged['importe_tot'] > 1000]
+
+# ✅ RÁPIDO OPCIÓN 1: Máscara vectorizada con transform (Permite indexación booleana directa)
+mask_vip = df.groupby('cliente_id')['importe'].transform('sum') > 1000
+df_top = df[mask_vip]
+
+# ✅ RÁPIDO OPCIÓN 2: GroupBy.filter nativo
+df_top = df.groupby('cliente_id').filter(lambda g: g['importe'].sum() > 1000)
+```
 
 ---
 
@@ -113,8 +157,9 @@ df_filtrado = df[~filtro_inactivos & (df['compras'] > 100)]
 
 | Tarea | Herramienta Correcta | Ejemplo de Código |
 | :--- | :--- | :--- |
-| **Filtrar / Reducir filas** | Máscara Booleana + `~` | `df[~condicion]` |
+| **Filtrar / Reducir filas** | Máscara Booleana + `~` / `.isin()` / `.between()` | `df[~condicion]` o `df[df['c'].between(a, b)]` |
+| **Filtrar por métrica de grupo** | Máscara con `.transform()` o `groupby().filter()` | `df[df.groupby('id')['val'].transform('sum') > 100]` |
 | **Nueva columna (2 opciones)** | `np.where` | `np.where(c, val_true, val_false)` |
 | **Nueva columna (3+ opciones)** | `np.select` | `np.select(conds, opts, default)` |
 | **Modificar filas específicas *in-place*** | `df.loc[]` | `df.loc[cond, 'col'] = nuevo_valor` |
-| **Transformación estándar (str/math/dt)** | Métodos nativos | `df['col'].str.lower()` |
+| **Transformación estándar (str/math/dt)** | Métodos nativos de Series | `df['col'].str.lower()` / `np.log(df['col'])` |
