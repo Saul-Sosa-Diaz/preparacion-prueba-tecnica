@@ -77,6 +77,43 @@ amazon_transactions = amazon_transactions[((amazon_transactions['created_at'] - 
 
 amazon_transactions['user_id'].to_list()
 ```
+https://platform.stratascratch.com/coding/10304-risky-projects
+```python
+# Import your libraries
+import pandas as pd
+import math
+import numpy as np
+
+# Start writing code
+linkedin_projects.head()
+
+# Primero sacar el número de meses de un proyecto
+linkedin_projects["Days_of_proyect"] = (linkedin_projects["end_date"] - linkedin_projects["start_date"]).dt.days
+
+linkedin_projects
+
+# Ahora sacar que Gente trabaja en que proyecto 
+linkedin_employees.rename(columns={'id': 'emp_id'}, inplace=True)
+linkedin_projects.rename(columns={'id': 'project_id'}, inplace=True)
+tmp = linkedin_emp_projects.merge(linkedin_employees, on="emp_id")
+
+projects_with_emp = linkedin_projects.merge(tmp, on="project_id")
+
+projects_with_emp
+
+# Calcular el precio de la gente trabajando
+# 365 -> salary
+# Days_of_project -> X
+# X = (Days_of_project * Salary) / 365 
+projects_with_emp["prorated_expense"] = (projects_with_emp["Days_of_proyect"] * projects_with_emp["salary"]) / 365
+
+# Ahora sumar por proyecto
+final = projects_with_emp.groupby(["project_id","title","budget"])["prorated_expense"].agg("sum").reset_index()
+final["prorated_expense"] = np.ceil(final["prorated_expense"])
+final = final[final["budget"] < final["prorated_expense"]]
+
+final.drop(["project_id"], axis=1)
+```
 
  Guía de Práctica para Entrevistas Técnicas: StrataScratch (Python / Pandas)
 
