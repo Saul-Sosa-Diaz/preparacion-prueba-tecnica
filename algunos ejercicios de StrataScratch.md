@@ -59,7 +59,25 @@ tre = tre[tre["bin"] > 0]
 
 tre.groupby("date_x")["bin"].mean().reset_index()
 ```
- 
+https://platform.stratascratch.com/coding/10322-finding-user-purchases
+```python
+# Import your libraries
+import pandas as pd
+import numpy as np
+
+# Start writing code
+amazon_transactions.head()
+
+amazon_transactions = amazon_transactions.sort_values(['user_id', "created_at"])
+amazon_transactions = amazon_transactions.drop_duplicates(["user_id", "created_at"])
+amazon_transactions  = amazon_transactions.groupby('user_id').head(2).reset_index()
+amazon_transactions['prev_created_at'] = amazon_transactions.groupby('user_id')['created_at'].shift(1) # desplaza los valores 
+
+amazon_transactions = amazon_transactions[((amazon_transactions['created_at'] - amazon_transactions['prev_created_at']).dt.days <= 7 ) & (amazon_transactions['prev_created_at'].notna())]
+
+amazon_transactions['user_id'].to_list()
+```
+
  Guía de Práctica para Entrevistas Técnicas: StrataScratch (Python / Pandas)
 
 Esta recopilación contiene las preguntas clave y más representativas de **StrataScratch** para preparar entrevistas técnicas de Data Analyst en Python/Pandas, organizadas por patrón técnico y empresa.
