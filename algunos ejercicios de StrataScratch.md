@@ -1,4 +1,64 @@
 https://platform.stratascratch.com/coding/10352-users-by-avg-session-time
+```python
+# Import your libraries
+import pandas as pd
+
+# Start writing code
+facebook_web_log.head()
+
+facebook_web_log["date"] = facebook_web_log["timestamp"].dt.date
+
+loads = (
+    facebook_web_log[facebook_web_log["action"] == "page_load"]
+    .groupby(["user_id", "date"])["timestamp"]
+    .max()
+    .reset_index(name="latest_page_load")
+)
+
+exits = (
+    facebook_web_log[facebook_web_log["action"] == "page_exit"]
+    .groupby(["user_id", "date"])["timestamp"]
+    .min()
+    .reset_index(name="earliest_page_exit")
+)
+
+sessions = pd.merge(loads, exits, on=["user_id", "date"], how="inner")
+
+valid_sessions = sessions[
+    sessions["latest_page_load"] < sessions["earliest_page_exit"]
+].copy()
+
+valid_sessions["session_duration"] = (
+    valid_sessions["earliest_page_exit"] - valid_sessions["latest_page_load"]
+).dt.total_seconds()
+
+result = (
+    valid_sessions.groupby("user_id")["session_duration"]
+    .mean()
+    .reset_index(name="session_time")
+)
+```
+
+
+https://platform.stratascratch.com/coding/10285-acceptance-rate-by-date
+```python
+# Import your libraries
+import pandas as pd
+import numpy as np
+
+# Start writing code
+fb_friend_requests
+accepted = fb_friend_requests[fb_friend_requests["action"]=="accepted"]
+
+sended = fb_friend_requests[fb_friend_requests["action"]=="sent"]
+
+tre = pd.merge(sended, accepted, on=["user_id_sender", "user_id_receiver"], how="left")
+
+tre['bin'] = np.where(tre['action_y'].isna(), 0, 1)
+tre = tre[tre["bin"] > 0]
+
+tre.groupby("date_x")["bin"].mean().reset_index()
+```
  
  Guía de Práctica para Entrevistas Técnicas: StrataScratch (Python / Pandas)
 
