@@ -38,7 +38,7 @@ result = (
     .reset_index(name="session_time")
 )
 ```
-
+---
 
 https://platform.stratascratch.com/coding/10285-acceptance-rate-by-date
 ```python
@@ -59,6 +59,7 @@ tre = tre[tre["bin"] > 0]
 
 tre.groupby("date_x")["bin"].mean().reset_index()
 ```
+---
 https://platform.stratascratch.com/coding/10322-finding-user-purchases
 ```python
 # Import your libraries
@@ -77,6 +78,7 @@ amazon_transactions = amazon_transactions[((amazon_transactions['created_at'] - 
 
 amazon_transactions['user_id'].to_list()
 ```
+---
 https://platform.stratascratch.com/coding/10304-risky-projects
 ```python
 # Import your libraries
@@ -113,6 +115,60 @@ final["prorated_expense"] = np.ceil(final["prorated_expense"])
 final = final[final["budget"] < final["prorated_expense"]]
 
 final.drop(["project_id"], axis=1)
+```
+---
+https://platform.stratascratch.com/coding/10159-ranking-most-active-guests
+```python
+# Import your libraries
+import pandas as pd
+import numpy as np
+#Mi solucion pocha
+# Start writing code
+airbnb_contacts.head()
+
+messages_by_guests = airbnb_contacts.groupby("id_guest")["n_messages"].sum().reset_index()
+messages_by_guests.sort_values(["n_messages"], inplace=True, ascending=False)
+
+messages_by_guests["rank"] = np.arange(1, len(messages_by_guests) + 1)
+
+max_numbermessage = messages_by_guests["n_messages"].max()
+
+rank = 1
+def rank_control(prev, curr):
+   global rank
+   if prev == curr:
+     return rank
+   rank = rank + 1
+   return rank
+
+messages_by_guests["prev_num_message_guest"] = messages_by_guests.shift(1,fill_value=max_numbermessage)["n_messages"]
+
+messages_by_guests["ranking"] = np.vectorize(rank_control)(messages_by_guests["prev_num_message_guest"], messages_by_guests["n_messages"])
+
+
+messages_by_guests = messages_by_guests[["ranking", "id_guest", "n_messages"]]
+
+messages_by_guests.rename(columns={"n_messages": "sum_n_messages"}, inplace=True)
+
+messages_by_guests
+
+# La solucion chachi
+import pandas as pd
+
+# 1. Agrupar y sumar mensajes por huésped
+result = (
+    airbnb_contacts.groupby("id_guest", as_index=False)["n_messages"]
+    .sum()
+)
+
+# 2. Calcular el ranking denso (sin saltos de número en empates)
+result["ranking"] = result["n_messages"].rank(method="dense", ascending=False).astype(int)
+
+# 3. Ordenar y seleccionar columnas requeridas
+result = (
+    result.sort_values(by=["ranking", "id_guest"])
+    [["ranking", "id_guest", "n_messages"]]
+)
 ```
 
  Guía de Práctica para Entrevistas Técnicas: StrataScratch (Python / Pandas)
