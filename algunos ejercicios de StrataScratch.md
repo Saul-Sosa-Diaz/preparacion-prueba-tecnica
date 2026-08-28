@@ -170,7 +170,37 @@ result = (
     [["ranking", "id_guest", "n_messages"]]
 )
 ```
+---
+https://platform.stratascratch.com/coding/10156-number-of-units-per-nationality
 
+```python
+# Import your libraries
+import pandas as pd
+
+# Start writing code
+airbnb_hosts.head()
+
+# Me quedo con la peña más pequeña de 30
+airbnb_hosts = airbnb_hosts[airbnb_hosts["age"] < 30]
+
+# Filtrar solo los apartamentos
+airbnb_units = airbnb_units[airbnb_units["unit_type"]=="Apartment"]
+
+# Ahora hay que hacer un merge
+hosts_filtereds_by_ages_with_apartaments_types = airbnb_hosts.merge(airbnb_units, on="host_id", how='inner')
+
+
+young_hosts_apartment_counts = (
+    hosts_filtereds_by_ages_with_apartaments_types.groupby(
+        ["host_id", "nationality"]
+    )["unit_id"]
+    .nunique()
+    .reset_index(name="apartment_count")
+)
+
+young_hosts_apartment_counts[["nationality", "apartment_count"]]
+
+```
  Guía de Práctica para Entrevistas Técnicas: StrataScratch (Python / Pandas)
 
 Esta recopilación contiene las preguntas clave y más representativas de **StrataScratch** para preparar entrevistas técnicas de Data Analyst en Python/Pandas, organizadas por patrón técnico y empresa.
