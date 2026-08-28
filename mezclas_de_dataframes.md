@@ -181,12 +181,29 @@ df_merged = df_pedidos.merge(
 
 ---
 
-## 6. Matriz de Decisión: Tipos de Uniones
+## 6. Guía Definitiva de Selección de `how` (`inner`, `left`, `right`, `outer`)
 
-| Necesidad | Método Recomendado | Parámetros Clave |
+Para no dudar nunca al elegir el tipo de join, hazte **una sola pregunta**:
+
+> **"¿Qué entidad define el universo principal de mi análisis?"**
+
+### Regla Mental Rápida
+
+| Tipo de Join (`how`) | Pregunta Clave | Comportamiento con Filas no Coincidentes | Cuándo Usarlo | Impacto en Agregaciones / Métricas |
+| :--- | :--- | :--- | :--- | :--- |
+| **`'inner'`** | *¿Ambos lados son estrictamente obligatorios?* | **Elimina** las filas que no coincidan en ambos DataFrames. | Cuando solo interesan entidades con actividad/relación confirmada. | **Métricas de actividad pura** (ej. gasto medio solo de compradores reales). |
+| **`'left'`** | *¿La tabla izquierda es mi población maestra?* | Mantiene **todo lo de la izquierda**; rellena la derecha con `NaN`. | Cuando necesitas conservar la base completa (ej. usuarios aunque tengan 0 pedidos). | **Promedios globales/tasas de conversión** (el 0 cuenta para no inflar la media). |
+| **`'right'`** | *¿La tabla derecha es mi población maestra?* | Mantiene **todo lo de la derecha**; rellena la izquierda con `NaN`. | Rara vez necesario (conviene reordenar las tablas y usar `left` por legibilidad). | Idem a `left`, pero anclado a la derecha. |
+| **`'outer'`** | *¿Quiero ver todo lo que existe en cualquier lado?* | **Conserva todo**; rellena con `NaN` donde no haya cruce. | Auditorías de integridad de datos, reconciliación o reportes consolidados. | Identificación de registros huérfanos en ambos lados (`indicator=True`). |
+
+---
+
+## 7. Matriz de Decisión General de Operaciones de Unión
+
+| Necesidad de Negocio / Técnico | Método Recomendado | Parámetros Clave |
 | :--- | :--- | :--- |
 | Unir por clave relacional exacta | `pd.merge()` | `on`, `how`, `validate='1:m'`, `suffixes` |
-| Auditar registros sin cruce | `pd.merge()` | `how='outer'`, `indicator=True` |
+| Auditar registros sin cruce / huérfanos | `pd.merge()` | `how='outer'`, `indicator=True` |
 | Unir por proximidad temporal / logs | `pd.merge_asof()` | `on='fecha'`, `by='id'`, `direction='backward'` |
 | Apilar filas o columnas alineadas | `pd.concat()` | `ignore_index=True`, `join='inner'` |
-| Cruzar sobre el índice | `df.join()` | `lsuffix`, `rsuffix`, `how` |
+| Cruzar directamente sobre índices | `df.join()` | `lsuffix`, `rsuffix`, `how` |
